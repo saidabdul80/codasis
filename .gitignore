@@ -1,7 +1,5 @@
 
-vscode-extension/.vscode/**
-vscode-extension/.vscode-test/**
-vscode-extension/src/**
+
 vscode-extension/.gitignore
 vscode-extension/.yarnrc
 vscode-extension/vsc-extension-quickstart.md
