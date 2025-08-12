@@ -1,13 +1,13 @@
 {
   "name": "codasis",
   "displayName": "Codasis",
-  "description": "AI-powered code assistance using DeepSeek R1 and other powerful language models",
-  "version": "0.0.1",
-  "publisher": "augment-ai-replica",
+  "description": "Advanced AI-powered code intelligence platform with deep codebase understanding",
+  "version": "0.1.0",
+  "publisher": "codasis",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/augment-ai-replica/vscode-extension"
+    "url": "https://github.com/codasis/vscode-extension"
   },
   "engines": {
     "vscode": "^1.74.0"
@@ -29,140 +29,200 @@
   "contributes": {
     "commands": [
       {
-        "command": "augment-ai.askQuestion",
+        "command": "codasis.askQuestion",
         "title": "Ask AI Question",
-        "category": "Augment AI"
+        "category": "Codasis"
       },
       {
-        "command": "augment-ai.analyzeCode",
+        "command": "codasis.analyzeCode",
         "title": "Analyze Current Code",
-        "category": "Augment AI"
+        "category": "Codasis"
       },
       {
-        "command": "augment-ai.explainCode",
+        "command": "codasis.explainCode",
         "title": "Explain Selected Code",
-        "category": "Augment AI"
+        "category": "Codasis"
       },
       {
-        "command": "augment-ai.generateTests",
+        "command": "codasis.generateTests",
         "title": "Generate Tests",
-        "category": "Augment AI"
+        "category": "Codasis"
       },
       {
-        "command": "augment-ai.refactorCode",
+        "command": "codasis.refactorCode",
         "title": "Refactor Code",
-        "category": "Augment AI"
+        "category": "Codasis"
       },
       {
-        "command": "augment-ai.openChat",
+        "command": "codasis.openChat",
         "title": "Open AI Chat",
-        "category": "Augment AI"
+        "category": "Codasis"
       },
       {
-        "command": "augment-ai.indexWorkspace",
+        "command": "codasis.indexWorkspace",
         "title": "Index Workspace for AI Context",
-        "category": "Augment AI"
+        "category": "Codasis"
       },
       {
-        "command": "augment-ai.smartAnalyze",
+        "command": "codasis.smartAnalyze",
         "title": "Smart Code Analysis",
-        "category": "Augment AI"
+        "category": "Codasis"
+      },
+      {
+        "command": "codasis.openContextPanel",
+        "title": "Open Context Panel",
+        "category": "Codasis"
+      },
+      {
+        "command": "codasis.showProjectInsights",
+        "title": "Show Project Insights",
+        "category": "Codasis"
+      },
+      {
+        "command": "codasis.toggleInlineSuggestions",
+        "title": "Toggle Inline Suggestions",
+        "category": "Codasis"
       }
     ],
     "keybindings": [
       {
-        "command": "augment-ai.askQuestion",
+        "command": "codasis.askQuestion",
         "key": "ctrl+shift+a",
         "mac": "cmd+shift+a"
       },
       {
-        "command": "augment-ai.openChat",
+        "command": "codasis.openChat",
         "key": "ctrl+shift+c",
         "mac": "cmd+shift+c"
       },
       {
-        "command": "augment-ai.indexWorkspace",
+        "command": "codasis.indexWorkspace",
         "key": "ctrl+shift+i",
         "mac": "cmd+shift+i"
       },
       {
-        "command": "augment-ai.smartAnalyze",
+        "command": "codasis.smartAnalyze",
         "key": "ctrl+shift+s",
         "mac": "cmd+shift+s"
+      },
+      {
+        "command": "codasis.openContextPanel",
+        "key": "ctrl+shift+x",
+        "mac": "cmd+shift+x"
+      },
+      {
+        "command": "codasis.toggleInlineSuggestions",
+        "key": "ctrl+shift+t",
+        "mac": "cmd+shift+t"
       }
     ],
     "menus": {
       "editor/context": [
         {
-          "command": "augment-ai.explainCode",
+          "command": "codasis.explainCode",
           "when": "editorHasSelection",
-          "group": "augment-ai"
+          "group": "codasis"
         },
         {
-          "command": "augment-ai.refactorCode",
+          "command": "codasis.generateTests",
           "when": "editorHasSelection",
-          "group": "augment-ai"
+          "group": "codasis"
         },
         {
-          "command": "augment-ai.smartAnalyze",
+          "command": "codasis.refactorCode",
           "when": "editorHasSelection",
-          "group": "augment-ai"
+          "group": "codasis"
+        },
+        {
+          "command": "codasis.smartAnalyze",
+          "when": "editorHasSelection",
+          "group": "codasis"
         }
       ],
       "explorer/context": [
         {
-          "command": "augment-ai.analyzeCode",
+          "command": "codasis.analyzeCode",
           "when": "resourceExtname == .js || resourceExtname == .ts || resourceExtname == .py || resourceExtname == .php",
-          "group": "augment-ai"
+          "group": "codasis"
         }
       ]
     },
     "views": {
-      "augment-ai": [
+      "codasis": [
         {
-          "id": "augment-ai-chat",
+          "id": "codasis-chat",
           "name": "AI Chat",
           "type": "webview"
+        },
+        {
+          "id": "codasis-context",
+          "name": "Context Explorer",
+          "type": "tree"
+        },
+        {
+          "id": "codasis-insights",
+          "name": "Project Insights",
+          "type": "tree"
+        },
+        {
+          "id": "codasis-models",
+          "name": "AI Models",
+          "type": "tree"
         }
       ]
     },
     "viewsContainers": {
       "activitybar": [
         {
-          "id": "augment-ai",
-          "title": "Augment AI",
-          "icon": "$(robot)"
+          "id": "codasis",
+          "title": "Codasis",
+          "icon": "$(brain)"
         }
       ]
     },
     "configuration": {
-      "title": "Augment AI",
+      "title": "Codasis",
       "properties": {
-        "augment-ai.apiUrl": {
+        "codasis.apiUrl": {
           "type": "string",
           "default": "http://localhost:8000/api",
           "description": "Backend API URL"
         },
-        "augment-ai.apiKey": {
+        "codasis.apiKey": {
           "type": "string",
           "default": "",
           "description": "API Key for authentication"
         },
-        "augment-ai.preferredModel": {
+        "codasis.preferredModel": {
           "type": "string",
           "enum": ["deepseek-r1", "gpt-4", "claude-3", "gemini-pro"],
           "default": "deepseek-r1",
           "description": "Preferred AI model for responses"
         },
-        "augment-ai.autoComplete": {
+        "codasis.autoComplete": {
           "type": "boolean",
           "default": true,
           "description": "Enable auto-completion suggestions"
         },
-        "augment-ai.contextLines": {
+        "codasis.contextLines": {
           "type": "number",
           "default": 50,
           "description": "Number of context lines to send with requests"
+        },
+        "codasis.inlineSuggestions": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show inline code suggestions"
+        },
+        "codasis.enableHoverInfo": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show AI insights on hover"
+        },
+        "codasis.enableCodeLens": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show code lens with AI suggestions"
         }
       }
     }

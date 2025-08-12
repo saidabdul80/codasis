@@ -11,7 +11,7 @@ class APIClient {
     setupInterceptors() {
         // Request interceptor to add auth and base URL
         this.client.interceptors.request.use((config) => {
-            const vsConfig = vscode.workspace.getConfiguration('augment-ai');
+            const vsConfig = vscode.workspace.getConfiguration('codasis');
             const apiUrl = vsConfig.get('apiUrl', 'http://localhost:8000/api');
             const apiKey = vsConfig.get('apiKey', '');
             config.baseURL = apiUrl;
