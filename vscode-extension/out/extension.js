@@ -99,6 +99,82 @@ function activate(context) {
         }),
         vscode.commands.registerCommand('augment-ai.openChat', () => {
             vscode.commands.executeCommand('workbench.view.extension.augment-ai');
+        }),
+        vscode.commands.registerCommand('augment-ai.indexWorkspace', async () => {
+            const workspaceFolders = vscode.workspace.workspaceFolders;
+            if (!workspaceFolders || workspaceFolders.length === 0) {
+                vscode.window.showErrorMessage('No workspace folder is open');
+                return;
+            }
+
+            const workspacePath = workspaceFolders[0].uri.fsPath;
+
+            // Show progress
+            vscode.window.withProgress({
+                location: vscode.ProgressLocation.Notification,
+                title: "Indexing workspace for AI context...",
+                cancellable: false
+            }, async (progress) => {
+                try {
+                    progress.report({ increment: 0, message: "Analyzing project structure..." });
+
+                    const result = await apiClient.indexWorkspace(workspacePath);
+
+                    progress.report({ increment: 100, message: "Indexing complete!" });
+
+                    vscode.window.showInformationMessage(
+                        `Workspace indexed successfully! Processed ${result.stats.files_processed} files, ` +
+                        `updated ${result.stats.files_updated} files.`
+                    );
+                } catch (error) {
+                    console.error('Workspace indexing failed:', error);
+                    vscode.window.showErrorMessage(`Failed to index workspace: ${error.message}`);
+                }
+            });
+        }),
+        vscode.commands.registerCommand('augment-ai.smartAnalyze', async () => {
+            const editor = vscode.window.activeTextEditor;
+            if (!editor) {
+                vscode.window.showErrorMessage('No active editor');
+                return;
+            }
+
+            const document = editor.document;
+            const selection = editor.selection;
+            const selectedText = document.getText(selection);
+
+            if (!selectedText) {
+                vscode.window.showErrorMessage('Please select some code to analyze');
+                return;
+            }
+
+            try {
+                vscode.window.withProgress({
+                    location: vscode.ProgressLocation.Notification,
+                    title: "Performing intelligent code analysis...",
+                    cancellable: false
+                }, async (progress) => {
+                    progress.report({ increment: 0, message: "Gathering context..." });
+
+                    const analysis = await augmentProvider.smartAnalyzeCode(selectedText, document.languageId, {
+                        focus_area: 'general',
+                        include_tests: false
+                    });
+
+                    progress.report({ increment: 100, message: "Analysis complete!" });
+
+                    // Show analysis in output channel
+                    const outputChannel = vscode.window.createOutputChannel('Augment AI Smart Analysis');
+                    outputChannel.clear();
+                    outputChannel.appendLine('Smart Code Analysis:');
+                    outputChannel.appendLine('===================');
+                    outputChannel.appendLine(analysis);
+                    outputChannel.show();
+                });
+            } catch (error) {
+                console.error('Smart analysis failed:', error);
+                vscode.window.showErrorMessage(`Analysis failed: ${error.message}`);
+            }
         })
     ];
     context.subscriptions.push(...commands);

@@ -45,6 +45,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/generate-tests', [AIController::class, 'generateTests']);
         Route::post('/refactor', [AIController::class, 'refactor']);
         Route::post('/completions', [AIController::class, 'completions']);
+        Route::post('/index-workspace', [AIController::class, 'indexWorkspace']);
         Route::get('/models', [AIController::class, 'models']);
     });
 

@@ -7,14 +7,28 @@ use App\Models\CodeEmbedding;
 use App\Models\User;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Cache;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use RegexIterator;
+use SplFileInfo;
 
 class CodebaseIndexingService
 {
     private EmbeddingService $embeddingService;
     private CodeAnalysisService $codeAnalysisService;
+
+    private array $supportedExtensions = [
+        'php', 'js', 'jsx', 'ts', 'tsx', 'py', 'java', 'kt', 'swift',
+        'go', 'rs', 'cpp', 'c', 'cs', 'rb', 'vue', 'html', 'css',
+        'scss', 'json', 'xml', 'yaml', 'yml', 'md', 'sql'
+    ];
+
+    private array $excludePatterns = [
+        'node_modules', 'vendor', '.git', 'dist', 'build', 'coverage',
+        '.next', '.nuxt', '__pycache__', '.pytest_cache', 'target',
+        'bin', 'obj', '.vs', '.vscode/settings.json'
+    ];
 
     public function __construct(
         EmbeddingService $embeddingService,
@@ -76,6 +90,363 @@ class CodebaseIndexingService
         }
 
         return $stats;
+    }
+
+    public function extractContextualInformation(string $content, array $analysis): array
+    {
+        $contextualInfo = [
+            'framework' => null,
+            'patterns' => [],
+            'api_endpoints' => [],
+            'database_queries' => [],
+            'security_patterns' => [],
+            'performance_patterns' => [],
+        ];
+
+        // Detect framework patterns
+        $contextualInfo['framework'] = $this->detectFrameworkFromContent($content, $analysis['language']);
+
+        // Extract API endpoints
+        $contextualInfo['api_endpoints'] = $this->extractApiEndpoints($content, $analysis['language']);
+
+        // Extract database queries
+        $contextualInfo['database_queries'] = $this->extractDatabaseQueries($content, $analysis['language']);
+
+        // Detect design patterns
+        $contextualInfo['patterns'] = $this->detectDesignPatterns($content, $analysis['language']);
+
+        // Security pattern detection
+        $contextualInfo['security_patterns'] = $this->detectSecurityPatterns($content);
+
+        // Performance pattern detection
+        $contextualInfo['performance_patterns'] = $this->detectPerformancePatterns($content, $analysis['language']);
+
+        return $contextualInfo;
+    }
+
+    private function detectFrameworkFromContent(string $content, string $language): ?string
+    {
+        $frameworkPatterns = [
+            'php' => [
+                'Laravel' => ['Illuminate\\', 'Artisan::', 'Route::', 'Schema::', 'Eloquent'],
+                'Symfony' => ['Symfony\\', 'use Doctrine\\', '@Route', '@Entity'],
+                'CodeIgniter' => ['$this->load->', 'CI_Controller', '$this->db->'],
+                'Zend' => ['Zend\\', 'Laminas\\'],
+            ],
+            'javascript' => [
+                'React' => ['import React', 'useState', 'useEffect', 'jsx', 'React.Component'],
+                'Vue' => ['Vue.component', 'new Vue', 'v-if', 'v-for', '@click'],
+                'Angular' => ['@Component', '@Injectable', 'ngOnInit', 'Angular'],
+                'Express' => ['express()', 'app.get', 'app.post', 'req.body'],
+                'Next.js' => ['next/', 'getStaticProps', 'getServerSideProps'],
+            ],
+            'typescript' => [
+                'Angular' => ['@Component', '@Injectable', 'ngOnInit'],
+                'NestJS' => ['@Controller', '@Injectable', '@Get', '@Post'],
+                'React' => ['React.FC', 'useState', 'useEffect'],
+            ],
+            'python' => [
+                'Django' => ['django.', 'models.Model', 'HttpResponse', 'render'],
+                'Flask' => ['from flask', '@app.route', 'Flask(__name__)'],
+                'FastAPI' => ['from fastapi', '@app.get', '@app.post', 'FastAPI()'],
+            ],
+        ];
+
+        if (!isset($frameworkPatterns[$language])) {
+            return null;
+        }
+
+        foreach ($frameworkPatterns[$language] as $framework => $patterns) {
+            foreach ($patterns as $pattern) {
+                if (str_contains($content, $pattern)) {
+                    return $framework;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private function extractApiEndpoints(string $content, string $language): array
+    {
+        $endpoints = [];
+
+        $patterns = [
+            'php' => [
+                '/Route::(get|post|put|delete|patch)\s*\(\s*[\'"]([^\'"]+)[\'"]/i',
+                '/@Route\s*\(\s*[\'"]([^\'"]+)[\'"]/i',
+            ],
+            'javascript' => [
+                '/app\.(get|post|put|delete|patch)\s*\(\s*[\'"]([^\'"]+)[\'"]/i',
+                '/router\.(get|post|put|delete|patch)\s*\(\s*[\'"]([^\'"]+)[\'"]/i',
+            ],
+            'typescript' => [
+                '/@(Get|Post|Put|Delete|Patch)\s*\(\s*[\'"]([^\'"]+)[\'"]/i',
+            ],
+            'python' => [
+                '/@app\.route\s*\(\s*[\'"]([^\'"]+)[\'"]/i',
+                '/@(get|post|put|delete|patch)\s*\(\s*[\'"]([^\'"]+)[\'"]/i',
+            ],
+        ];
+
+        if (isset($patterns[$language])) {
+            foreach ($patterns[$language] as $pattern) {
+                if (preg_match_all($pattern, $content, $matches, PREG_SET_ORDER)) {
+                    foreach ($matches as $match) {
+                        $endpoints[] = [
+                            'method' => strtoupper($match[1] ?? 'GET'),
+                            'path' => $match[2] ?? $match[1],
+                            'line' => substr_count(substr($content, 0, strpos($content, $match[0])), "\n") + 1,
+                        ];
+                    }
+                }
+            }
+        }
+
+        return $endpoints;
+    }
+
+    private function extractDatabaseQueries(string $content, string $language): array
+    {
+        $queries = [];
+
+        $patterns = [
+            'php' => [
+                '/DB::(select|insert|update|delete|raw)\s*\(/i',
+                '/\$this->db->(get|insert|update|delete|query)\s*\(/i',
+                '/(SELECT|INSERT|UPDATE|DELETE)\s+.+?(FROM|INTO|SET|WHERE)/is',
+            ],
+            'javascript' => [
+                '/\.(find|findOne|insertOne|updateOne|deleteOne|aggregate)\s*\(/i',
+                '/(SELECT|INSERT|UPDATE|DELETE)\s+.+?(FROM|INTO|SET|WHERE)/is',
+            ],
+            'python' => [
+                '/\.(filter|get|create|update|delete|raw)\s*\(/i',
+                '/(SELECT|INSERT|UPDATE|DELETE)\s+.+?(FROM|INTO|SET|WHERE)/is',
+            ],
+        ];
+
+        if (isset($patterns[$language])) {
+            foreach ($patterns[$language] as $pattern) {
+                if (preg_match_all($pattern, $content, $matches, PREG_OFFSET_CAPTURE)) {
+                    foreach ($matches[0] as $match) {
+                        $queries[] = [
+                            'query' => trim($match[0]),
+                            'line' => substr_count(substr($content, 0, $match[1]), "\n") + 1,
+                        ];
+                    }
+                }
+            }
+        }
+
+        return $queries;
+    }
+
+    private function detectDesignPatterns(string $content, string $language): array
+    {
+        $patterns = [];
+
+        // Common design patterns to detect
+        $patternIndicators = [
+            'Singleton' => ['private static \$instance', 'getInstance()', 'private function __construct'],
+            'Factory' => ['Factory', 'create()', 'make()'],
+            'Observer' => ['Observer', 'notify()', 'attach()', 'detach()'],
+            'Strategy' => ['Strategy', 'execute()', 'setStrategy()'],
+            'Decorator' => ['Decorator', 'decorate()', 'wrap()'],
+            'Repository' => ['Repository', 'find()', 'save()', 'delete()'],
+            'Service' => ['Service', 'handle()', 'process()'],
+            'Builder' => ['Builder', 'build()', 'with()'],
+        ];
+
+        foreach ($patternIndicators as $pattern => $indicators) {
+            $score = 0;
+            foreach ($indicators as $indicator) {
+                if (str_contains($content, $indicator)) {
+                    $score++;
+                }
+            }
+
+            if ($score >= 2) {
+                $patterns[] = [
+                    'pattern' => $pattern,
+                    'confidence' => min(100, ($score / count($indicators)) * 100),
+                ];
+            }
+        }
+
+        return $patterns;
+    }
+
+    private function detectSecurityPatterns(string $content): array
+    {
+        $securityPatterns = [];
+
+        $securityIndicators = [
+            'SQL Injection Risk' => ['$_GET', '$_POST', '$_REQUEST', 'query(', 'exec('],
+            'XSS Risk' => ['echo $_', 'print $_', 'innerHTML', 'document.write'],
+            'CSRF Protection' => ['csrf_token', '@csrf', 'csrf_field'],
+            'Authentication' => ['Auth::', 'login()', 'authenticate()', 'password_verify'],
+            'Authorization' => ['authorize()', 'can()', 'cannot()', 'middleware'],
+            'Encryption' => ['encrypt()', 'decrypt()', 'hash()', 'bcrypt()', 'password_hash'],
+            'Input Validation' => ['validate()', 'sanitize()', 'filter_var', 'htmlspecialchars'],
+        ];
+
+        foreach ($securityIndicators as $pattern => $indicators) {
+            $count = 0;
+            foreach ($indicators as $indicator) {
+                $count += substr_count($content, $indicator);
+            }
+
+            if ($count > 0) {
+                $securityPatterns[] = [
+                    'pattern' => $pattern,
+                    'occurrences' => $count,
+                ];
+            }
+        }
+
+        return $securityPatterns;
+    }
+
+    private function detectPerformancePatterns(string $content, string $language): array
+    {
+        $performancePatterns = [];
+
+        $performanceIndicators = [
+            'Caching' => ['Cache::', 'cache()', 'remember()', 'Redis::', 'Memcached'],
+            'Database Optimization' => ['with()', 'eager loading', 'chunk()', 'cursor()'],
+            'Async Operations' => ['async', 'await', 'Promise', 'setTimeout', 'setInterval'],
+            'Memory Management' => ['unset()', 'gc_collect_cycles()', 'memory_get_usage()'],
+            'Query Optimization' => ['select()', 'where()', 'orderBy()', 'limit()', 'offset()'],
+        ];
+
+        foreach ($performanceIndicators as $pattern => $indicators) {
+            $count = 0;
+            foreach ($indicators as $indicator) {
+                $count += substr_count($content, $indicator);
+            }
+
+            if ($count > 0) {
+                $performancePatterns[] = [
+                    'pattern' => $pattern,
+                    'occurrences' => $count,
+                ];
+            }
+        }
+
+        return $performancePatterns;
+    }
+
+    public function analyzeProjectStructure(string $workspacePath): array
+    {
+        $structure = [
+            'type' => 'unknown',
+            'framework' => null,
+            'language' => null,
+            'package_managers' => [],
+            'config_files' => [],
+            'entry_points' => [],
+        ];
+
+        // Check for common project files
+        $projectFiles = [
+            'package.json' => ['type' => 'javascript', 'manager' => 'npm'],
+            'composer.json' => ['type' => 'php', 'manager' => 'composer'],
+            'requirements.txt' => ['type' => 'python', 'manager' => 'pip'],
+            'Pipfile' => ['type' => 'python', 'manager' => 'pipenv'],
+            'pyproject.toml' => ['type' => 'python', 'manager' => 'poetry'],
+            'Cargo.toml' => ['type' => 'rust', 'manager' => 'cargo'],
+            'go.mod' => ['type' => 'go', 'manager' => 'go'],
+            'pom.xml' => ['type' => 'java', 'manager' => 'maven'],
+            'build.gradle' => ['type' => 'java', 'manager' => 'gradle'],
+            'Gemfile' => ['type' => 'ruby', 'manager' => 'bundler'],
+        ];
+
+        foreach ($projectFiles as $file => $info) {
+            if (file_exists($workspacePath . '/' . $file)) {
+                $structure['type'] = $info['type'];
+                $structure['package_managers'][] = $info['manager'];
+                $structure['config_files'][] = $file;
+            }
+        }
+
+        // Detect framework
+        $structure['framework'] = $this->detectFramework($workspacePath, $structure['type']);
+
+        return $structure;
+    }
+
+    public function filterRelevantFiles(array $files): array
+    {
+        return array_filter($files, function ($file) {
+            // Check if file should be excluded
+            foreach ($this->excludePatterns as $pattern) {
+                if (str_contains($file, $pattern)) {
+                    return false;
+                }
+            }
+
+            // Check if file extension is supported
+            $extension = strtolower(pathinfo($file, PATHINFO_EXTENSION));
+            return in_array($extension, $this->supportedExtensions);
+        });
+    }
+
+    public function buildDependencyGraph(int $userId, array $dependencies): void
+    {
+        // Group dependencies by file
+        $dependencyMap = [];
+        foreach ($dependencies as $dep) {
+            $file = $dep['file'] ?? 'unknown';
+            if (!isset($dependencyMap[$file])) {
+                $dependencyMap[$file] = [];
+            }
+            $dependencyMap[$file][] = $dep;
+        }
+
+        // Store dependency relationships
+        foreach ($dependencyMap as $file => $deps) {
+            Cache::put("dependencies:{$userId}:{$file}", $deps, 3600);
+        }
+    }
+
+    private function detectFramework(string $workspacePath, string $type): ?string
+    {
+        $frameworkIndicators = [
+            'javascript' => [
+                'next.config.js' => 'Next.js',
+                'nuxt.config.js' => 'Nuxt.js',
+                'vue.config.js' => 'Vue.js',
+                'angular.json' => 'Angular',
+                'gatsby-config.js' => 'Gatsby',
+                'svelte.config.js' => 'Svelte',
+            ],
+            'php' => [
+                'artisan' => 'Laravel',
+                'app/Console/Kernel.php' => 'Laravel',
+                'bin/console' => 'Symfony',
+                'wp-config.php' => 'WordPress',
+                'index.php' => 'Custom PHP',
+            ],
+            'python' => [
+                'manage.py' => 'Django',
+                'app.py' => 'Flask',
+                'main.py' => 'FastAPI',
+                'setup.py' => 'Python Package',
+            ],
+        ];
+
+        if (!isset($frameworkIndicators[$type])) {
+            return null;
+        }
+
+        foreach ($frameworkIndicators[$type] as $file => $framework) {
+            if (file_exists($workspacePath . '/' . $file)) {
+                return $framework;
+            }
+        }
+
+        return null;
     }
 
     public function indexFile(User $user, string $workspacePath, string $filePath): array

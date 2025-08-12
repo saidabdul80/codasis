@@ -45,12 +45,57 @@ class APIClient {
     }
     async askQuestion(request) {
         try {
-            const response = await this.client.post('/ai/ask', request);
+            // Add workspace context if available
+            const workspaceContext = await this.getWorkspaceContext();
+            const enhancedRequest = {
+                ...request,
+                ...workspaceContext
+            };
+
+            const response = await this.client.post('/ai/ask', enhancedRequest);
             return response.data;
         }
         catch (error) {
             console.error('Error asking question:', error);
             throw new Error('Failed to get AI response');
+        }
+    }
+
+    async getWorkspaceContext() {
+        try {
+            const vscode = require('vscode');
+            const workspaceFolders = vscode.workspace.workspaceFolders;
+            const activeEditor = vscode.window.activeTextEditor;
+
+            const context = {};
+
+            if (workspaceFolders && workspaceFolders.length > 0) {
+                context.workspace_path = workspaceFolders[0].uri.fsPath;
+            }
+
+            if (activeEditor) {
+                context.current_file = activeEditor.document.uri.fsPath;
+                context.language = activeEditor.document.languageId;
+            }
+
+            return context;
+        } catch (error) {
+            console.error('Error getting workspace context:', error);
+            return {};
+        }
+    }
+
+    async indexWorkspace(workspacePath, forceReindex = false) {
+        try {
+            const response = await this.client.post('/ai/index-workspace', {
+                workspace_path: workspacePath,
+                force_reindex: forceReindex
+            });
+            return response.data;
+        }
+        catch (error) {
+            console.error('Error indexing workspace:', error);
+            throw new Error('Failed to index workspace');
         }
     }
     async analyzeCode(code, language) {
