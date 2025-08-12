@@ -1,6 +1,6 @@
 {
-  "name": "augment-ai-replica",
-  "displayName": "Augment AI Replica",
+  "name": "codasis",
+  "displayName": "Codasis",
   "description": "AI-powered code assistance using DeepSeek R1 and other powerful language models",
   "version": "0.0.1",
   "engines": {
