@@ -158,6 +158,60 @@ ${code}`;
             return false;
         }
     }
+
+    async smartAnalyzeCode(code, language, options = {}) {
+        try {
+            const vscode = require('vscode');
+            const workspaceFolders = vscode.workspace.workspaceFolders;
+            const activeEditor = vscode.window.activeTextEditor;
+
+            // Prepare enhanced request with context
+            const request = {
+                prompt: `Perform a comprehensive analysis of this ${language} code. Include:
+1. Code structure and design patterns
+2. Potential issues and improvements
+3. Performance considerations
+4. Security implications
+5. Best practices recommendations
+
+Code to analyze:
+\`\`\`${language}
+${code}
+\`\`\``,
+                focus_area: options.focus_area || 'general',
+                include_tests: options.include_tests || false
+            };
+
+            // Add workspace context
+            if (workspaceFolders && workspaceFolders.length > 0) {
+                request.workspace_path = workspaceFolders[0].uri.fsPath;
+            }
+
+            if (activeEditor) {
+                request.current_file = activeEditor.document.uri.fsPath;
+                request.language = language;
+            }
+
+            const response = await this.apiClient.askQuestion(request);
+
+            // Format the response with context information
+            let analysis = response.response;
+
+            if (response.context_used) {
+                analysis += `\n\n## Context Information\n`;
+                analysis += `- Context Type: ${response.context_used.type}\n`;
+                analysis += `- Files Referenced: ${response.context_used.files_referenced}\n`;
+                analysis += `- Dependencies Included: ${response.context_used.dependencies_included}\n`;
+                analysis += `- Token Count: ${response.context_used.token_count}\n`;
+            }
+
+            return analysis;
+        }
+        catch (error) {
+            console.error('Error in smart analysis:', error);
+            return `Failed to perform smart analysis: ${error.message}`;
+        }
+    }
 }
 exports.AugmentAIProvider = AugmentAIProvider;
 //# sourceMappingURL=AugmentAIProvider.js.map
