@@ -4,6 +4,11 @@
   "description": "AI-powered code assistance using DeepSeek R1 and other powerful language models",
   "version": "0.0.1",
   "publisher": "augment-ai-replica",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/augment-ai-replica/vscode-extension"
+  },
   "engines": {
     "vscode": "^1.74.0"
   },
@@ -19,9 +24,7 @@
     "code-completion",
     "nlp"
   ],
-  "activationEvents": [
-    "onStartupFinished"
-  ],
+  "activationEvents": [],
   "main": "./out/extension.js",
   "contributes": {
     "commands": [
@@ -115,11 +118,11 @@
       ]
     },
     "views": {
-      "explorer": [
+      "augment-ai": [
         {
           "id": "augment-ai-chat",
           "name": "AI Chat",
-          "when": "augment-ai:enabled"
+          "type": "webview"
         }
       ]
     },
