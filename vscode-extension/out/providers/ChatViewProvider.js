@@ -87,7 +87,7 @@ class ChatViewProvider {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Augment AI Chat</title>
+    <title>AI Chat</title>
     <style>
         body {
             font-family: var(--vscode-font-family);
@@ -100,8 +100,8 @@ class ChatViewProvider {
             display: flex;
             flex-direction: column;
         }
-        
-        .chat-container {
+
+        #chatContainer {
             flex: 1;
             overflow-y: auto;
             margin-bottom: 10px;
@@ -109,76 +109,79 @@ class ChatViewProvider {
             border: 1px solid var(--vscode-panel-border);
             border-radius: 4px;
         }
-        
+
         .message {
             margin-bottom: 15px;
             padding: 8px 12px;
             border-radius: 8px;
-            max-width: 90%;
+            max-width: 85%;
         }
-        
+
         .user-message {
             background-color: var(--vscode-button-background);
             color: var(--vscode-button-foreground);
             margin-left: auto;
             text-align: right;
         }
-        
+
         .ai-message {
             background-color: var(--vscode-input-background);
             border: 1px solid var(--vscode-input-border);
         }
-        
-        .message-content {
-            white-space: pre-wrap;
-            word-wrap: break-word;
+
+        .message-time {
+            font-size: 0.8em;
+            opacity: 0.7;
+            margin-top: 5px;
         }
-        
+
         .code-block {
             background-color: var(--vscode-textCodeBlock-background);
             border: 1px solid var(--vscode-panel-border);
             border-radius: 4px;
-            padding: 8px;
-            margin: 8px 0;
-            font-family: var(--vscode-editor-font-family);
-            font-size: var(--vscode-editor-font-size);
-            overflow-x: auto;
+            margin: 10px 0;
             position: relative;
         }
-        
+
         .code-actions {
             position: absolute;
-            top: 4px;
-            right: 4px;
+            top: 5px;
+            right: 5px;
+            display: flex;
+            gap: 5px;
         }
-        
+
         .code-action-btn {
-            background: var(--vscode-button-background);
+            background-color: var(--vscode-button-background);
             color: var(--vscode-button-foreground);
             border: none;
-            padding: 2px 6px;
-            border-radius: 2px;
+            padding: 4px 8px;
+            border-radius: 3px;
             cursor: pointer;
-            font-size: 11px;
-            margin-left: 4px;
+            font-size: 0.8em;
         }
-        
+
         .code-action-btn:hover {
-            background: var(--vscode-button-hoverBackground);
+            background-color: var(--vscode-button-hoverBackground);
         }
-        
-        .timestamp {
-            font-size: 11px;
-            color: var(--vscode-descriptionForeground);
-            margin-top: 4px;
+
+        pre {
+            margin: 0;
+            padding: 15px;
+            overflow-x: auto;
         }
-        
-        .input-container {
+
+        code {
+            font-family: var(--vscode-editor-font-family);
+        }
+
+        #inputContainer {
             display: flex;
-            gap: 8px;
+            gap: 10px;
+            align-items: center;
         }
-        
-        .message-input {
+
+        #messageInput {
             flex: 1;
             padding: 8px;
             border: 1px solid var(--vscode-input-border);
@@ -186,71 +189,63 @@ class ChatViewProvider {
             background-color: var(--vscode-input-background);
             color: var(--vscode-input-foreground);
             font-family: inherit;
-            font-size: inherit;
         }
-        
-        .send-button, .clear-button {
+
+        #messageInput:focus {
+            outline: none;
+            border-color: var(--vscode-focusBorder);
+        }
+
+        button {
             padding: 8px 16px;
             border: none;
             border-radius: 4px;
-            cursor: pointer;
-            font-family: inherit;
-            font-size: inherit;
-        }
-        
-        .send-button {
             background-color: var(--vscode-button-background);
             color: var(--vscode-button-foreground);
+            cursor: pointer;
+            font-family: inherit;
         }
-        
-        .send-button:hover {
+
+        button:hover {
             background-color: var(--vscode-button-hoverBackground);
         }
-        
-        .send-button:disabled {
-            opacity: 0.6;
+
+        button:disabled {
+            opacity: 0.5;
             cursor: not-allowed;
         }
-        
-        .clear-button {
-            background-color: var(--vscode-button-secondaryBackground);
-            color: var(--vscode-button-secondaryForeground);
-        }
-        
-        .clear-button:hover {
-            background-color: var(--vscode-button-secondaryHoverBackground);
-        }
-        
-        .typing-indicator {
+
+        #typingIndicator {
             display: none;
-            color: var(--vscode-descriptionForeground);
             font-style: italic;
-            margin-bottom: 10px;
+            opacity: 0.7;
+            padding: 8px 12px;
         }
-        
+
         .error-message {
-            background-color: var(--vscode-inputValidation-errorBackground);
-            border: 1px solid var(--vscode-inputValidation-errorBorder);
+            background-color: var(--vscode-errorBackground);
             color: var(--vscode-errorForeground);
-            padding: 8px;
+            border: 1px solid var(--vscode-errorBorder);
+            padding: 8px 12px;
             border-radius: 4px;
             margin-bottom: 10px;
         }
     </style>
 </head>
 <body>
-    <div class="chat-container" id="chatContainer">
-        <div class="ai-message message">
-            <div class="message-content">Hello! I'm your AI coding assistant. I can help you with code analysis, explanations, refactoring, and more. What would you like to work on today?</div>
+    <div id="chatContainer">
+        <div class="ai-message">
+            <div>Hello! I'm your AI coding assistant. How can I help you today?</div>
+            <div class="message-time">Ready to assist</div>
         </div>
     </div>
     
-    <div class="typing-indicator" id="typingIndicator">AI is typing...</div>
+    <div id="typingIndicator">AI is typing...</div>
     
-    <div class="input-container">
-        <input type="text" class="message-input" id="messageInput" placeholder="Ask me anything about your code..." />
-        <button class="send-button" id="sendButton">Send</button>
-        <button class="clear-button" id="clearButton">Clear</button>
+    <div id="inputContainer">
+        <input type="text" id="messageInput" placeholder="Ask me anything about your code..." />
+        <button id="sendButton" onclick="sendMessage()">Send</button>
+        <button id="clearButton" onclick="clearChat()">Clear</button>
     </div>
 
     <script>
@@ -285,12 +280,9 @@ class ChatViewProvider {
             });
         }
 
-        function addMessage(content, isUser = false, timestamp = null) {
+        function addMessage(content, isUser, timestamp) {
             const messageDiv = document.createElement('div');
             messageDiv.className = \`message \${isUser ? 'user-message' : 'ai-message'}\`;
-            
-            const contentDiv = document.createElement('div');
-            contentDiv.className = 'message-content';
             
             // Process code blocks
             const processedContent = content.replace(/\`\`\`([\\s\\S]*?)\`\`\`/g, (match, code) => {
@@ -304,15 +296,10 @@ class ChatViewProvider {
                 </div>\`;
             });
             
-            contentDiv.innerHTML = processedContent;
-            messageDiv.appendChild(contentDiv);
-            
-            if (timestamp) {
-                const timestampDiv = document.createElement('div');
-                timestampDiv.className = 'timestamp';
-                timestampDiv.textContent = new Date(timestamp).toLocaleTimeString();
-                messageDiv.appendChild(timestampDiv);
-            }
+            messageDiv.innerHTML = \`
+                <div>\${processedContent}</div>
+                <div class="message-time">\${new Date(timestamp).toLocaleTimeString()}</div>
+            \`;
             
             chatContainer.appendChild(messageDiv);
             chatContainer.scrollTop = chatContainer.scrollHeight;
@@ -326,17 +313,15 @@ class ChatViewProvider {
             chatContainer.scrollTop = chatContainer.scrollHeight;
         }
 
-        sendButton.addEventListener('click', sendMessage);
-        clearButton.addEventListener('click', clearChat);
-
-        messageInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
+        // Handle Enter key
+        messageInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter' && !sendButton.disabled) {
                 sendMessage();
             }
         });
 
-        messageInput.addEventListener('input', () => {
+        // Enable send button when there's text
+        messageInput.addEventListener('input', function() {
             sendButton.disabled = !messageInput.value.trim();
         });
 

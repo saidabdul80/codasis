@@ -29,7 +29,7 @@ class AugmentAIProvider {
     async analyzeCode(code, language) {
         try {
             const analysis = await this.apiClient.analyzeCode(code, language);
-            const complexity = await this.codeAnalyzer.analyzeCodeComplexity(code);
+            const complexity = this.codeAnalyzer.analyzeCodeComplexity(code);
             return `# Code Analysis Report
 
 ## AI Analysis
@@ -91,25 +91,8 @@ ${code}`;
         }
     }
     formatContext(context) {
-        let formatted = `File: ${context.currentFile}\n`;
-        formatted += `Language: ${context.language}\n\n`;
-        if (context.currentFunction) {
-            formatted += `Current Function: ${context.currentFunction}\n\n`;
-        }
-        if (context.selectedText) {
-            formatted += `Selected Code:\n${context.selectedText}\n\n`;
-        }
-        formatted += `Surrounding Code:\n${context.surroundingCode}\n\n`;
-        if (context.imports.length > 0) {
-            formatted += `Imports:\n${context.imports.join('\n')}\n\n`;
-        }
-        if (context.dependencies.length > 0) {
-            formatted += `Dependencies:\n${context.dependencies.slice(0, 10).join(', ')}\n\n`;
-        }
-        if (context.projectStructure.length > 0) {
-            formatted += `Project Structure (sample):\n${context.projectStructure.slice(0, 20).join('\n')}\n`;
-        }
-        return formatted;
+        // Format context for better AI understanding
+        return `Context Information:\n${context}`;
     }
     generateRecommendations(complexity) {
         const recommendations = [];
@@ -135,7 +118,7 @@ ${code}`;
             const context = await this.codeAnalyzer.getCompletionContext(document, position);
             const linePrefix = document.lineAt(position).text.substr(0, position.character);
             const suggestions = await this.getCompletions(linePrefix, context, document.languageId);
-            return suggestions.map(suggestion => {
+            return suggestions.map((suggestion) => {
                 const item = new vscode.CompletionItem(suggestion.text, vscode.CompletionItemKind.Snippet);
                 item.detail = suggestion.description;
                 item.insertText = new vscode.SnippetString(suggestion.text);
@@ -158,13 +141,10 @@ ${code}`;
             return false;
         }
     }
-
     async smartAnalyzeCode(code, language, options = {}) {
         try {
-            const vscode = require('vscode');
             const workspaceFolders = vscode.workspace.workspaceFolders;
             const activeEditor = vscode.window.activeTextEditor;
-
             // Prepare enhanced request with context
             const request = {
                 prompt: `Perform a comprehensive analysis of this ${language} code. Include:
@@ -181,22 +161,9 @@ ${code}
                 focus_area: options.focus_area || 'general',
                 include_tests: options.include_tests || false
             };
-
-            // Add workspace context
-            if (workspaceFolders && workspaceFolders.length > 0) {
-                request.workspace_path = workspaceFolders[0].uri.fsPath;
-            }
-
-            if (activeEditor) {
-                request.current_file = activeEditor.document.uri.fsPath;
-                request.language = language;
-            }
-
             const response = await this.apiClient.askQuestion(request);
-
             // Format the response with context information
             let analysis = response.response;
-
             if (response.context_used) {
                 analysis += `\n\n## Context Information\n`;
                 analysis += `- Context Type: ${response.context_used.type}\n`;
@@ -204,7 +171,6 @@ ${code}
                 analysis += `- Dependencies Included: ${response.context_used.dependencies_included}\n`;
                 analysis += `- Token Count: ${response.context_used.token_count}\n`;
             }
-
             return analysis;
         }
         catch (error) {

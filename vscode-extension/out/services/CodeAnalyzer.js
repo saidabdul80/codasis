@@ -2,189 +2,136 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.CodeAnalyzer = void 0;
 const vscode = require("vscode");
-const path = require("path");
 class CodeAnalyzer {
     async getCurrentContext() {
         const editor = vscode.window.activeTextEditor;
         if (!editor) {
-            throw new Error('No active editor');
+            return '';
         }
         const document = editor.document;
         const position = editor.selection.active;
-        return {
-            currentFile: document.fileName,
-            currentFunction: await this.getCurrentFunction(document, position),
-            selectedText: this.getSelectedText(editor),
-            surroundingCode: this.getSurroundingCode(document, position),
-            projectStructure: await this.getProjectStructure(),
-            language: document.languageId,
-            imports: this.extractImports(document),
-            dependencies: await this.getProjectDependencies()
-        };
+        // Get surrounding context (50 lines before and after)
+        const startLine = Math.max(0, position.line - 25);
+        const endLine = Math.min(document.lineCount - 1, position.line + 25);
+        const contextRange = new vscode.Range(startLine, 0, endLine, 0);
+        const contextText = document.getText(contextRange);
+        return `File: ${document.fileName}\nLanguage: ${document.languageId}\n\nContext:\n${contextText}`;
     }
     async getCompletionContext(document, position) {
-        const config = vscode.workspace.getConfiguration('augment-ai');
-        const contextLines = config.get('contextLines', 50);
-        const startLine = Math.max(0, position.line - contextLines);
-        const endLine = Math.min(document.lineCount - 1, position.line + contextLines);
-        const range = new vscode.Range(startLine, 0, endLine, 0);
-        const contextText = document.getText(range);
-        // Add file information
-        const fileInfo = `File: ${path.basename(document.fileName)}\nLanguage: ${document.languageId}\n\n`;
-        return fileInfo + contextText;
+        // Get context around the current position for completions
+        const startLine = Math.max(0, position.line - 10);
+        const endLine = Math.min(document.lineCount - 1, position.line + 5);
+        const contextRange = new vscode.Range(startLine, 0, endLine, 0);
+        return document.getText(contextRange);
     }
-    getSelectedText(editor) {
-        const selection = editor.selection;
-        if (selection.isEmpty) {
-            return undefined;
-        }
-        return editor.document.getText(selection);
-    }
-    getSurroundingCode(document, position, lines = 20) {
-        const startLine = Math.max(0, position.line - lines);
-        const endLine = Math.min(document.lineCount - 1, position.line + lines);
-        const range = new vscode.Range(startLine, 0, endLine, 0);
-        return document.getText(range);
-    }
-    async getCurrentFunction(document, position) {
-        try {
-            const symbols = await vscode.commands.executeCommand('vscode.executeDocumentSymbolProvider', document.uri);
-            if (!symbols) {
-                return undefined;
-            }
-            return this.findContainingFunction(symbols, position);
-        }
-        catch (error) {
-            console.error('Error getting current function:', error);
-            return undefined;
-        }
-    }
-    findContainingFunction(symbols, position) {
-        for (const symbol of symbols) {
-            if (symbol.range.contains(position)) {
-                if (symbol.kind === vscode.SymbolKind.Function ||
-                    symbol.kind === vscode.SymbolKind.Method ||
-                    symbol.kind === vscode.SymbolKind.Constructor) {
-                    return symbol.name;
-                }
-                // Check nested symbols
-                if (symbol.children) {
-                    const nestedFunction = this.findContainingFunction(symbol.children, position);
-                    if (nestedFunction) {
-                        return nestedFunction;
-                    }
-                }
-            }
-        }
-        return undefined;
-    }
-    extractImports(document) {
-        const text = document.getText();
-        const imports = [];
-        // Different import patterns for different languages
-        const patterns = {
-            typescript: /^import\s+.*?from\s+['"]([^'"]+)['"];?$/gm,
-            javascript: /^import\s+.*?from\s+['"]([^'"]+)['"];?$/gm,
-            python: /^(?:from\s+(\S+)\s+import|import\s+(\S+))/gm,
-            php: /^use\s+([^;]+);$/gm,
-            java: /^import\s+([^;]+);$/gm,
-            csharp: /^using\s+([^;]+);$/gm
+    analyzeCodeComplexity(code) {
+        const lines = code.split('\n');
+        const nonEmptyLines = lines.filter(line => line.trim().length > 0);
+        // Simple complexity analysis
+        const functions = (code.match(/function\s+\w+|def\s+\w+|class\s+\w+/g) || []).length;
+        const classes = (code.match(/class\s+\w+/g) || []).length;
+        const conditionals = (code.match(/if\s*\(|else|elif|switch|case/g) || []).length;
+        const loops = (code.match(/for\s*\(|while\s*\(|foreach/g) || []).length;
+        const cyclomaticComplexity = 1 + conditionals + loops;
+        return {
+            linesOfCode: lines.length,
+            nonEmptyLines: nonEmptyLines.length,
+            functions,
+            classes,
+            cyclomaticComplexity,
+            complexity: cyclomaticComplexity > 10 ? 'High' : cyclomaticComplexity > 5 ? 'Medium' : 'Low'
         };
-        const language = document.languageId;
-        const pattern = patterns[language];
-        if (pattern) {
+    }
+    extractImports(code, language) {
+        const imports = [];
+        const patterns = {
+            'javascript': [
+                /import\s+.*?\s+from\s+['"]([^'"]+)['"]/g,
+                /require\s*\(\s*['"]([^'"]+)['"]\s*\)/g
+            ],
+            'typescript': [
+                /import\s+.*?\s+from\s+['"]([^'"]+)['"]/g,
+                /require\s*\(\s*['"]([^'"]+)['"]\s*\)/g
+            ],
+            'python': [
+                /from\s+(\S+)\s+import/g,
+                /import\s+(\S+)/g
+            ],
+            'php': [
+                /use\s+([\w\\]+)/g,
+                /require_once\s+['"]([^'"]+)['"]/g,
+                /include_once\s+['"]([^'"]+)['"]/g
+            ]
+        };
+        const languagePatterns = patterns[language] || [];
+        for (const pattern of languagePatterns) {
             let match;
-            while ((match = pattern.exec(text)) !== null) {
-                imports.push(match[1] || match[2] || match[0]);
+            while ((match = pattern.exec(code)) !== null) {
+                imports.push(match[1]);
             }
         }
         return imports;
     }
-    async getProjectStructure() {
-        const workspaceFolders = vscode.workspace.workspaceFolders;
-        if (!workspaceFolders) {
-            return [];
-        }
-        const structure = [];
-        try {
-            const files = await vscode.workspace.findFiles('**/*.{js,ts,py,php,java,cs,cpp,h,hpp,c}', '**/node_modules/**', 100 // Limit to 100 files for performance
-            );
-            for (const file of files) {
-                const relativePath = vscode.workspace.asRelativePath(file);
-                structure.push(relativePath);
-            }
-        }
-        catch (error) {
-            console.error('Error getting project structure:', error);
-        }
-        return structure;
-    }
-    async getProjectDependencies() {
-        const dependencies = [];
-        try {
-            // Check for package.json (Node.js)
-            const packageJsonFiles = await vscode.workspace.findFiles('**/package.json', '**/node_modules/**', 5);
-            for (const file of packageJsonFiles) {
-                const content = await vscode.workspace.fs.readFile(file);
-                const packageJson = JSON.parse(content.toString());
-                if (packageJson.dependencies) {
-                    dependencies.push(...Object.keys(packageJson.dependencies));
-                }
-                if (packageJson.devDependencies) {
-                    dependencies.push(...Object.keys(packageJson.devDependencies));
-                }
-            }
-            // Check for requirements.txt (Python)
-            const requirementFiles = await vscode.workspace.findFiles('**/requirements.txt', undefined, 5);
-            for (const file of requirementFiles) {
-                const content = await vscode.workspace.fs.readFile(file);
-                const lines = content.toString().split('\n');
-                for (const line of lines) {
-                    const trimmed = line.trim();
-                    if (trimmed && !trimmed.startsWith('#')) {
-                        const packageName = trimmed.split(/[>=<]/)[0];
-                        dependencies.push(packageName);
-                    }
-                }
-            }
-            // Check for composer.json (PHP)
-            const composerFiles = await vscode.workspace.findFiles('**/composer.json', '**/vendor/**', 5);
-            for (const file of composerFiles) {
-                const content = await vscode.workspace.fs.readFile(file);
-                const composerJson = JSON.parse(content.toString());
-                if (composerJson.require) {
-                    dependencies.push(...Object.keys(composerJson.require));
-                }
-                if (composerJson['require-dev']) {
-                    dependencies.push(...Object.keys(composerJson['require-dev']));
-                }
-            }
-        }
-        catch (error) {
-            console.error('Error getting project dependencies:', error);
-        }
-        return [...new Set(dependencies)]; // Remove duplicates
-    }
-    async analyzeCodeComplexity(code) {
+    extractFunctions(code, language) {
+        const functions = [];
         const lines = code.split('\n');
-        const linesOfCode = lines.filter(line => line.trim() && !line.trim().startsWith('//')).length;
-        // Simple complexity analysis
-        const complexityKeywords = ['if', 'else', 'while', 'for', 'switch', 'case', 'catch', 'try'];
-        let cyclomaticComplexity = 1; // Base complexity
-        for (const line of lines) {
-            for (const keyword of complexityKeywords) {
-                if (line.includes(keyword)) {
-                    cyclomaticComplexity++;
+        const patterns = {
+            'javascript': /function\s+(\w+)|(\w+)\s*[:=]\s*(?:function|\([^)]*\)\s*=>)/,
+            'typescript': /function\s+(\w+)|(\w+)\s*[:=]\s*(?:function|\([^)]*\)\s*=>)/,
+            'python': /def\s+(\w+)/,
+            'php': /function\s+(\w+)/,
+            'java': /(?:public|private|protected)?\s*(?:static\s+)?[\w<>\[\]]+\s+(\w+)\s*\(/,
+            'csharp': /(?:public|private|protected)?\s*(?:static\s+)?[\w<>\[\]]+\s+(\w+)\s*\(/
+        };
+        const pattern = patterns[language];
+        if (!pattern)
+            return functions;
+        lines.forEach((line, index) => {
+            const match = line.match(pattern);
+            if (match) {
+                const functionName = match[1] || match[2];
+                if (functionName) {
+                    functions.push({
+                        name: functionName,
+                        line: index + 1
+                    });
                 }
             }
-        }
-        const functions = (code.match(/function\s+\w+|def\s+\w+|public\s+\w+\s*\(/g) || []).length;
-        const classes = (code.match(/class\s+\w+/g) || []).length;
+        });
+        return functions;
+    }
+    extractClasses(code, language) {
+        const classes = [];
+        const lines = code.split('\n');
+        const patterns = {
+            'javascript': /class\s+(\w+)/,
+            'typescript': /class\s+(\w+)/,
+            'python': /class\s+(\w+)/,
+            'php': /class\s+(\w+)/,
+            'java': /(?:public\s+)?class\s+(\w+)/,
+            'csharp': /(?:public\s+)?class\s+(\w+)/
+        };
+        const pattern = patterns[language];
+        if (!pattern)
+            return classes;
+        lines.forEach((line, index) => {
+            const match = line.match(pattern);
+            if (match) {
+                classes.push({
+                    name: match[1],
+                    line: index + 1
+                });
+            }
+        });
+        return classes;
+    }
+    getFileMetadata(document) {
         return {
-            cyclomaticComplexity,
-            linesOfCode,
-            functions,
-            classes
+            fileName: document.fileName,
+            language: document.languageId,
+            lineCount: document.lineCount,
+            size: document.getText().length,
+            lastModified: new Date().toISOString()
         };
     }
 }
