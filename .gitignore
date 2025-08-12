@@ -5,7 +5,6 @@ vscode-extension/src/**
 vscode-extension/.gitignore
 vscode-extension/.yarnrc
 vscode-extension/vsc-extension-quickstart.md
-vscode-extension/**/tsconfig.json
 vscode-extension/**/.eslintrc.json
 vscode-extension/**/*.map
 vscode-extension/**/*.ts
