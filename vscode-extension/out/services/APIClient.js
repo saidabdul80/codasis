@@ -5,37 +5,33 @@ const axios_1 = require("axios");
 const vscode = require("vscode");
 class APIClient {
     constructor() {
-        this.apiKey = '';
-        this.baseURL = '';
-        this.updateConfiguration();
-        // Watch for configuration changes
-        vscode.workspace.onDidChangeConfiguration((e) => {
-            if (e.affectsConfiguration('augment-ai')) {
-                this.updateConfiguration();
-            }
-        });
+        this.client = axios_1.default.create();
+        this.setupInterceptors();
     }
-    updateConfiguration() {
-        const config = vscode.workspace.getConfiguration('augment-ai');
-        this.baseURL = config.get('apiUrl', 'http://localhost:8000/api');
-        this.apiKey = config.get('apiKey', '');
-        this.client = axios_1.default.create({
-            baseURL: this.baseURL,
-            timeout: 30000,
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': this.apiKey ? `Bearer ${this.apiKey}` : '',
-                'User-Agent': 'Augment-AI-VSCode/1.0.0'
+    setupInterceptors() {
+        // Request interceptor to add auth and base URL
+        this.client.interceptors.request.use((config) => {
+            const vsConfig = vscode.workspace.getConfiguration('augment-ai');
+            const apiUrl = vsConfig.get('apiUrl', 'http://localhost:8000/api');
+            const apiKey = vsConfig.get('apiKey', '');
+            config.baseURL = apiUrl;
+            if (apiKey) {
+                config.headers.Authorization = `Bearer ${apiKey}`;
             }
+            config.headers['Content-Type'] = 'application/json';
+            config.timeout = 30000; // 30 seconds
+            return config;
         });
-        // Add response interceptor for error handling
+        // Response interceptor for error handling
         this.client.interceptors.response.use((response) => response, (error) => {
-            console.error('API Error:', error);
             if (error.response?.status === 401) {
-                vscode.window.showErrorMessage('Authentication failed. Please check your API key.');
+                vscode.window.showErrorMessage('Authentication failed. Please check your API key in settings.');
             }
             else if (error.response?.status === 429) {
                 vscode.window.showErrorMessage('Rate limit exceeded. Please try again later.');
+            }
+            else if (error.code === 'ECONNREFUSED') {
+                vscode.window.showErrorMessage('Cannot connect to backend. Make sure the server is running.');
             }
             else {
                 vscode.window.showErrorMessage(`API Error: ${error.message}`);
@@ -51,7 +47,6 @@ class APIClient {
                 ...request,
                 ...workspaceContext
             };
-
             const response = await this.client.post('/ai/ask', enhancedRequest);
             return response.data;
         }
@@ -60,31 +55,25 @@ class APIClient {
             throw new Error('Failed to get AI response');
         }
     }
-
     async getWorkspaceContext() {
         try {
-            const vscode = require('vscode');
             const workspaceFolders = vscode.workspace.workspaceFolders;
             const activeEditor = vscode.window.activeTextEditor;
-
             const context = {};
-
             if (workspaceFolders && workspaceFolders.length > 0) {
                 context.workspace_path = workspaceFolders[0].uri.fsPath;
             }
-
             if (activeEditor) {
                 context.current_file = activeEditor.document.uri.fsPath;
                 context.language = activeEditor.document.languageId;
             }
-
             return context;
-        } catch (error) {
+        }
+        catch (error) {
             console.error('Error getting workspace context:', error);
             return {};
         }
     }
-
     async indexWorkspace(workspacePath, forceReindex = false) {
         try {
             const response = await this.client.post('/ai/index-workspace', {
@@ -143,7 +132,7 @@ class APIClient {
                 code,
                 language
             });
-            return response.data.refactoredCode;
+            return response.data.refactored_code;
         }
         catch (error) {
             console.error('Error refactoring code:', error);
@@ -166,7 +155,7 @@ class APIClient {
     }
     async sendChatMessage(message, conversationId) {
         try {
-            const response = await this.client.post('/ai/chat', {
+            const response = await this.client.post('/chat/', {
                 message,
                 conversationId
             });
