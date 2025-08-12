@@ -1,0 +1,161 @@
+{
+  "name": "augment-ai-replica",
+  "displayName": "Augment AI Replica",
+  "description": "AI-powered code assistance using DeepSeek R1 and other powerful language models",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.74.0"
+  },
+  "categories": [
+    "Other",
+    "Machine Learning",
+    "Snippets"
+  ],
+  "keywords": [
+    "ai",
+    "assistant",
+    "deepseek",
+    "code-completion",
+    "nlp"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "augment-ai.askQuestion",
+        "title": "Ask AI Question",
+        "category": "Augment AI"
+      },
+      {
+        "command": "augment-ai.analyzeCode",
+        "title": "Analyze Current Code",
+        "category": "Augment AI"
+      },
+      {
+        "command": "augment-ai.explainCode",
+        "title": "Explain Selected Code",
+        "category": "Augment AI"
+      },
+      {
+        "command": "augment-ai.generateTests",
+        "title": "Generate Tests",
+        "category": "Augment AI"
+      },
+      {
+        "command": "augment-ai.refactorCode",
+        "title": "Refactor Code",
+        "category": "Augment AI"
+      },
+      {
+        "command": "augment-ai.openChat",
+        "title": "Open AI Chat",
+        "category": "Augment AI"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "augment-ai.askQuestion",
+        "key": "ctrl+shift+a",
+        "mac": "cmd+shift+a"
+      },
+      {
+        "command": "augment-ai.openChat",
+        "key": "ctrl+shift+c",
+        "mac": "cmd+shift+c"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "augment-ai.explainCode",
+          "when": "editorHasSelection",
+          "group": "augment-ai"
+        },
+        {
+          "command": "augment-ai.refactorCode",
+          "when": "editorHasSelection",
+          "group": "augment-ai"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "augment-ai.analyzeCode",
+          "when": "resourceExtname == .js || resourceExtname == .ts || resourceExtname == .py || resourceExtname == .php",
+          "group": "augment-ai"
+        }
+      ]
+    },
+    "views": {
+      "explorer": [
+        {
+          "id": "augment-ai-chat",
+          "name": "AI Chat",
+          "when": "augment-ai:enabled"
+        }
+      ]
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "augment-ai",
+          "title": "Augment AI",
+          "icon": "$(robot)"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Augment AI",
+      "properties": {
+        "augment-ai.apiUrl": {
+          "type": "string",
+          "default": "http://localhost:8000/api",
+          "description": "Backend API URL"
+        },
+        "augment-ai.apiKey": {
+          "type": "string",
+          "default": "",
+          "description": "API Key for authentication"
+        },
+        "augment-ai.preferredModel": {
+          "type": "string",
+          "enum": ["deepseek-r1", "gpt-4", "claude-3", "gemini-pro"],
+          "default": "deepseek-r1",
+          "description": "Preferred AI model for responses"
+        },
+        "augment-ai.autoComplete": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable auto-completion suggestions"
+        },
+        "augment-ai.contextLines": {
+          "type": "number",
+          "default": 50,
+          "description": "Number of context lines to send with requests"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile && npm run lint",
+    "lint": "eslint src --ext ts",
+    "test": "node ./out/test/runTest.js"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.74.0",
+    "@types/node": "16.x",
+    "@typescript-eslint/eslint-plugin": "^5.45.0",
+    "@typescript-eslint/parser": "^5.45.0",
+    "eslint": "^8.28.0",
+    "typescript": "^4.9.4"
+  },
+  "dependencies": {
+    "axios": "^1.6.0",
+    "ws": "^8.14.0"
+  }
+}
